@@ -1,15 +1,23 @@
 # Change Log
 
+## Unreleased
+
+## 2.5.0 - 2021-12-26
+
+* ActiveRecord 7.0 support
+
+* Drop support for rubies under 2.5. PR #1189
+
+* Have casted array predicates type checked to Arel::Nodes::Casted fixing non-casted array predicates.
+  PR [1246](https://github.com/activerecord-hackery/ransack/pull/1246)
+
+## 2.4.1 - 2020-12-21
+
 * Add `ActiveRecord::Base.ransack!` which raises error if passed unknown condition
 
   *Aaron Lipman*
 
-* Drop support for rubies under 2.5. PR #1189
-
 ## 2.4.0 - 2020-11-27
-
-*
-  PR []()
 
 * Support ActiveRecord 6.1.0.rc1.
   PR [1172](https://github.com/activerecord-hackery/ransack/pull/1172)
@@ -202,7 +210,7 @@
     ignored when block parameter is specified.
     PR [#818](https://github.com/activerecord-hackery/ransack/pull/818).
 
-*   No need pass some arugments to JoinAssociation#join_constraints in Rails 5.1.
+*   No need pass some arguments to JoinAssociation#join_constraints in Rails 5.1.
     PR [#814](https://github.com/activerecord-hackery/ransack/pull/814).
     Fixes [#807](https://github.com/activerecord-hackery/ransack/issues/807).
     Reference [rails/rails#28267](https://github.com/rails/rails/pull/28267)
