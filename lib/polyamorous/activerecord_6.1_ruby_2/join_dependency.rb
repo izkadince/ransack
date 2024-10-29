@@ -1,3 +1,4 @@
+# Part of fix_negative_predicate_merge_with_2_5_0 branch
 module Polyamorous
   module JoinDependencyExtensions
     # Replaces ActiveRecord::Associations::JoinDependency#build
