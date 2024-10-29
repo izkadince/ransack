@@ -53,12 +53,20 @@ module Ransack
         end
 
         def casted_array?(predicate)
-          predicate.respond_to?(:val) && predicate.val.is_a?(Array)
+          value_from(predicate).is_a?(Array) && predicate.is_a?(Arel::Nodes::Casted)
+        end
+
+        def value_from(predicate)
+          if predicate.respond_to?(:value)
+            predicate.value # Rails 6.1
+          elsif predicate.respond_to?(:val)
+            predicate.val # Rails 5.2, 6.0
+          end
         end
 
         def format_values_for(predicate)
-          predicate.val.map do |value|
-            value.is_a?(String) ? Arel::Nodes.build_quoted(value) : value
+          value_from(predicate).map do |val|
+            val.is_a?(String) ? Arel::Nodes.build_quoted(val) : val
           end
         end
 

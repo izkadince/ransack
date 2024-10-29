@@ -1,6 +1,6 @@
 # ![Ransack](./logo/ransack-h.png "Ransack")
 
-[![Build Status](https://travis-ci.org/activerecord-hackery/ransack.svg)](https://travis-ci.org/activerecord-hackery/ransack)
+[![Build Status](https://github.com/activerecord-hackery/ransack/workflows/test/badge.svg)](https://github.com/activerecord-hackery/ransack/actions)
 [![Gem Version](https://badge.fury.io/rb/ransack.svg)](http://badge.fury.io/rb/ransack)
 [![Code Climate](https://codeclimate.com/github/activerecord-hackery/ransack/badges/gpa.svg)](https://codeclimate.com/github/activerecord-hackery/ransack)
 [![Backers on Open Collective](https://opencollective.com/ransack/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/ransack/sponsors/badge.svg)](#sponsors)
@@ -11,13 +11,11 @@ Ransack enables the creation of both
 for your Ruby on Rails application
 ([demo source code here](https://github.com/activerecord-hackery/ransack_demo)).
 If you're looking for something that simplifies query generation at the model
-or controller layer, you're probably not looking for Ransack (or MetaSearch,
-for that matter). Try [Squeel](https://github.com/activerecord-hackery/squeel)
-instead.
+or controller layer, you're probably not looking for Ransack.
 
 ## Getting started
 
-Ransack is compatible with Rails 6.0, 5.0, 5.1 and 5.2 on Ruby 2.3 and later.
+Ransack is supported for Rails 7.0, 6.x, 5.2 on Ruby 2.6.6 and later.
 
 In your Gemfile, for the last officially released gem:
 
@@ -41,27 +39,14 @@ gem 'ransack', github: 'activerecord-hackery/ransack'
 
 ## Usage
 
-Ransack can be used in one of two modes, simple or advanced.
+Ransack can be used in one of two modes, simple or advanced. For
+searching/filtering not requiring complex boolean logic, Ransack's simple
+mode should meet your needs.
+
+If you're coming from MetaSearch (Ransack's predecessor), refer to the
+[Updating From MetaSearch](#updating-from-metasearch) section
 
 ### Simple Mode
-
-This mode works much like MetaSearch, for those of you who are familiar with
-it, and requires very little setup effort.
-
-If you're coming from MetaSearch, things to note:
-
-  1. The default param key for search params is now `:q`, instead of `:search`.
-  This is primarily to shorten query strings, though advanced queries (below)
-  will still run afoul of URL length limits in most browsers and require a
-  switch to HTTP POST requests. This key is [configurable](https://github.com/activerecord-hackery/ransack/wiki/Configuration).
-
-  2. `form_for` is now `search_form_for`, and validates that a Ransack::Search
-  object is passed to it.
-
-  3. Common ActiveRecord::Relation methods are no longer delegated by the
-  search object. Instead, you will get your search results (an
-  ActiveRecord::Relation in the case of the ActiveRecord adapter) via a call to
-  `Ransack#result`.
 
 #### In your controller
 
@@ -78,9 +63,35 @@ this example, with preloading each Person's Articles and pagination):
 def index
   @q = Person.ransack(params[:q])
   @people = @q.result.includes(:articles).page(params[:page])
+end
+```
 
-  # or use `to_a.uniq` to remove duplicates (can also be done in the view):
-  @people = @q.result.includes(:articles).page(params[:page]).to_a.uniq
+##### Default search options
+
+**Search parameter**
+
+Ransack uses a default `:q` param key for search params. This may be changed by
+setting the `search_key` option in a Ransack initializer file (typically
+`config/initializers/ransack.rb`):
+
+```ruby
+Ransack.configure do |c|
+  # Change default search parameter key name.
+  # Default key name is :q
+  c.search_key = :query
+end
+```
+
+**String search**
+
+After version 2.4.0 when searching a string query Ransack by default strips all whitespace around the query string.
+This may be disabled by setting the `strip_whitespace` option in a Ransack initializer file:
+
+```ruby
+Ransack.configure do |c|
+  # Change whitespace stripping behaviour.
+  # Default is true
+  c.strip_whitespace = false
 end
 ```
 
@@ -263,6 +274,57 @@ the order indicator arrow by passing `hide_indicator: true` in the sort link:
   default_order: { last_name: 'asc', first_name: 'desc' }) %>
 ```
 
+#### PostgreSQL's sort option
+
+The `NULLS FIRST` and `NULLS LAST` options can be used to determine whether nulls appear before or after non-null values in the sort ordering.
+
+You may want to configure it like this:
+
+```rb
+Ransack.configure do |c|
+  c.postgres_fields_sort_option = :nulls_first # or :nulls_last
+end
+```
+
+To treat nulls as having the lowest or highest value respectively. To force nulls to always be first or last, use
+
+```rb
+Ransack.configure do |c|
+  c.postgres_fields_sort_option = :nulls_always_first # or :nulls_always_last
+end
+```
+
+See this feature: https://www.postgresql.org/docs/13/queries-order.html
+
+#### Case Insensitive Sorting in PostgreSQL
+
+In order to request PostgreSQL to do a case insensitive sort for all string columns of a model at once, Ransack can be extended by using this approach:
+
+```ruby
+module RansackObject
+
+  def self.included(base)
+    base.columns.each do |column|
+      if column.type == :string
+        base.ransacker column.name.to_sym, type: :string do
+          Arel.sql("lower(#{base.table_name}.#{column.name})")
+        end
+      end
+    end
+  end
+end
+```
+
+```ruby
+class UserWithManyAttributes < ActiveRecord::Base
+  include RansackObject
+end
+```
+
+If this approach is taken, it is advisable to [add a functional index](https://www.postgresql.org/docs/13/citext.html).
+
+This was originally asked in [a Ransack issue](https://github.com/activerecord-hackery/ransack/issues/1201) and a solution was found on [Stack Overflow](https://stackoverflow.com/a/34677378).
+
 ### Advanced Mode
 
 "Advanced" searches (ab)use Rails' nested attributes functionality in order to
@@ -421,6 +483,25 @@ query parameters in your URLs.
 <% end %>
 ```
 
+You can also use `ransack_alias` for sorting.
+
+```ruby
+class Post < ActiveRecord::Base
+  belongs_to :author
+
+  # Abbreviate :author_first_name to :author
+  ransack_alias :author, :author_first_name
+end
+```
+
+Now, you can use `:author` instead of `:author_first_name` in a `sort_link`.
+
+```erb
+<%= sort_link(@q, :author) %>
+```
+
+Note that using `:author_first_name_or_author_last_name_cont` would produce an invalid sql query. In those cases, Ransack ignores the sorting clause.
+
 ### Search Matchers
 
 List of all possible predicates
@@ -473,7 +554,7 @@ List of all possible predicates
 | `*_not_cont` | Does not contain |
 | `*_not_cont_any` | Does not contain any of | |
 | `*_not_cont_all` | Does not contain all of | |
-| `*_i_cont` | Contains value with case insensitive | uses `LIKE` |
+| `*_i_cont` | Contains value with case insensitive | uses `ILIKE` |
 | `*_i_cont_any` | Contains any of values with case insensitive | |
 | `*_i_cont_all` | Contains all of values with case insensitive | |
 | `*_not_i_cont` | Does not contain with case insensitive |
@@ -683,6 +764,43 @@ Trying it out in `rails console`:
 
 That's it! Now you know how to whitelist/blacklist various elements in Ransack.
 
+### Handling unknown predicates or attributes
+
+By default, Ransack will ignore any unknown predicates or attributes:
+
+```ruby
+Article.ransack(unknown_attr_eq: 'Ernie').result.to_sql
+=> SELECT "articles".* FROM "articles"
+```
+
+Ransack may be configured to raise an error if passed an unknown predicate or
+attributes, by setting the `ignore_unknown_conditions` option to `false` in your
+Ransack initializer file at `config/initializers/ransack.rb`:
+
+```ruby
+Ransack.configure do |c|
+  # Raise errors if a query contains an unknown predicate or attribute.
+  # Default is true (do not raise error on unknown conditions).
+  c.ignore_unknown_conditions = false
+end
+```
+
+```ruby
+Article.ransack(unknown_attr_eq: 'Ernie')
+# ArgumentError (Invalid search term unknown_attr_eq)
+```
+
+As an alternative to setting a global configuration option, the `.ransack!`
+class method also raises an error if passed an unknown condition:
+
+```ruby
+Article.ransack!(unknown_attr_eq: 'Ernie')
+# ArgumentError: Invalid search term unknown_attr_eq
+```
+
+This is equivalent to the `ignore_unknown_conditions` configuration option,
+except it may be applied on a case-by-case basis.
+
 ### Using Scopes/Class Methods
 
 Continuing on from the preceding section, searching by scopes requires defining
@@ -878,6 +996,28 @@ en:
       namespace_article:
         title: Old Ransack Namespaced Title
 ```
+
+### Updating From MetaSearch
+
+Ransack works much like MetaSearch, for those of you who are familiar with
+it, and requires very little setup effort.
+
+If you're coming from MetaSearch, things to note:
+
+  1. The default param key for search params is now `:q`, instead of `:search`.
+  This is primarily to shorten query strings, though advanced queries (below)
+  will still run afoul of URL length limits in most browsers and require a
+  switch to HTTP POST requests. This key is
+  [configurable](default-search-parameter) via setting the `search_key` option
+  in your Ransack intitializer file.
+
+  2. `form_for` is now `search_form_for`, and validates that a Ransack::Search
+  object is passed to it.
+
+  3. Common ActiveRecord::Relation methods are no longer delegated by the
+  search object. Instead, you will get your search results (an
+  ActiveRecord::Relation in the case of the ActiveRecord adapter) via a call to
+  `Ransack#result`.
 
 ## Mongoid
 
