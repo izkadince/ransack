@@ -1,3 +1,4 @@
+# active_record_6.1_ruby_2/join_dependency.rb
 module Polyamorous
   module JoinDependencyExtensions
     # Replaces ActiveRecord::Associations::JoinDependency#build
@@ -9,10 +10,10 @@ module Polyamorous
           reflection.check_eager_loadable!
 
           klass = if reflection.polymorphic?
-                    name.klass || base_klass
-                  else
-                    reflection.klass
-                  end
+            name.klass || base_klass
+          else
+            reflection.klass
+          end
           JoinAssociation.new(reflection, build(right, klass), name.klass, name.type)
         else
           reflection = find_reflection base_klass, name
@@ -56,21 +57,11 @@ module Polyamorous
     private
 
     def table_aliases_for(parent, node)
-      @joined_tables ||= {}
       node.reflection.chain.map { |reflection|
-        table, terminated = @joined_tables[reflection]
-        root = reflection == node.reflection
-
-        if table && (!root || !terminated)
-          @joined_tables[reflection] = [table, true] if root
-          table
-        else
-          table = alias_tracker.aliased_table_for(reflection.klass.arel_table) do
-            name = reflection.alias_candidate(parent.table_name)
-            root ? name : "#{name}_join"
-          end
-          @joined_tables[reflection] ||= [table, root] if join_type == Arel::Nodes::OuterJoin
-          table
+        alias_tracker.aliased_table_for(reflection.klass.arel_table) do
+          root = reflection == node.reflection
+          name = reflection.alias_candidate(parent.table_name)
+          root ? name : "#{name}_join"
         end
       }
     end
